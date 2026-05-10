@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WhatsApp History - Zaptilo</title>
+  <link rel="stylesheet" href="../../css/widget.css">
+  <script src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
+</head>
+<body>
+  <div id="alert-container"></div>
+
+  <div class="widget-header" style="display:flex; justify-content:space-between; align-items:center;">
+    <div>
+      <h2>WhatsApp Messages</h2>
+      <p id="contact-info"></p>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="openSendWidget()">
+      + Send Message
+    </button>
+  </div>
+
+  <div id="chat-area">
+    <div class="loading"><div class="spinner"></div><p style="margin-top:8px">Loading messages...</p></div>
+  </div>
+
+  <script src="../../js/zaptilo-api.js"></script>
+  <script>
+    let currentRecord = null;
+    let currentEntity = null;
+
+    ZOHO.embeddedApp.on('PageLoad', async function(data) {
+      currentEntity = data.Entity;
+
+      try {
+        const record = await ZOHO.CRM.API.getRecord({
+          Entity: data.Entity,
+          RecordID: data.EntityId,
+        });
+        currentRecord = record?.data?.[0];
+
+        if (currentRecord) {
+          const name = ZohoHelper.getNameFromRecord(currentRecord);
+          const phone = ZohoHelper.getPhoneFromRecord(currentRecord);
+          document.getElementById('contact-info').textContent = name + (phone ? ' (' + phone + ')' : '');
+        }
+      } catch (e) {
+        console.error('Failed to load record:', e);
+      }
+
+      loadHistory();
+    });
+
+    ZOHO.embeddedApp.init();
+
+    async function loadHistory() {
+      const container = document.getElementById('chat-area');
+
+      if (!currentRecord) {
+        container.innerHTML = '<div class="empty-state"><h3>Record not found</h3></div>';
+        return;
+      }
+
+      try {
+        const messages = await ZohoHelper.getMessageHistory(currentEntity, currentRecord.id);
+
+        if (!messages.length) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
+                <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+              </svg>
+              <h3>No messages yet</h3>
+              <p>Send a WhatsApp message to start the conversation.</p>
+            </div>`;
+          return;
+        }
+
+        container.innerHTML = '<div class="chat-container">' +
+          messages.map(msg => {
+            const isOutgoing = msg.Note_Title.includes('[WhatsApp Sent]');
+            const time = new Date(msg.Modified_Time).toLocaleString();
+            return `
+              <div class="chat-message ${isOutgoing ? 'chat-outgoing' : 'chat-incoming'}">
+                ${escapeHtml(msg.Note_Content || '')}
+                <div class="chat-meta">
+                  <span>${time}</span>
+                  ${isOutgoing ? '<span class="chat-status status-sent">Sent</span>' : ''}
+                </div>
+              </div>`;
+          }).join('') +
+          '</div>';
+      } catch (e) {
+        container.innerHTML = '<div class="alert alert-error">Failed to load history: ' + e.message + '</div>';
+      }
+    }
+
+    function openSendWidget() {
+      // Open the Send WhatsApp widget
+      ZOHO.CRM.UI.Popup.open({
+        url: '/app/widgets/send-whatsapp/index.html',
+        title: 'Send WhatsApp',
+        width: '500',
+        height: '600',
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

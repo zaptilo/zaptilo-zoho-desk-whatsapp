@@ -1,0 +1,64 @@
+// Deluge Custom Function: Send WhatsApp Template Message
+// Use in Zoho CRM Workflows, Blueprints, CommandCenter
+//
+// Parameters:
+//   phone         (String) - Phone number with country code, e.g. "919876543210"
+//   template_name (String) - Approved template name
+//   language      (String) - Language code, e.g. "en"
+//   body_values   (String) - Comma-separated values for template body params
+//
+// Returns: Map with status and message
+
+// Get API token from org variables
+apiToken = zoho.crm.getOrgVariable("zaptilo_api_token");
+
+if(apiToken == null || apiToken == "")
+{
+    return {"status": false, "message": "Zaptilo API token not configured"};
+}
+
+// Prepare API request
+apiUrl = "https://zaptilo.ai/api/send/template";
+
+headers = Map();
+headers.put("Authorization", "Bearer " + apiToken);
+headers.put("Content-Type", "application/json");
+
+payload = Map();
+payload.put("number", phone);
+payload.put("template_name", template_name);
+payload.put("language", ifnull(language, "en"));
+
+// Parse body values from comma-separated string
+if(body_values != null && body_values != "")
+{
+    bodyList = body_values.toList(",");
+    trimmedList = List();
+    for each val in bodyList
+    {
+        trimmedList.add(val.trim());
+    }
+    payload.put("body_values", trimmedList);
+}
+
+// Make API call
+response = invokeurl
+[
+    url: apiUrl
+    type: POST
+    headers: headers
+    parameters: payload.toString()
+];
+
+info "Zaptilo Send Template Response: " + response;
+
+// Parse response
+if(response.containKey("status") && response.get("status") == true)
+{
+    return {"status": true, "message": "Template message sent successfully"};
+}
+else
+{
+    errorMsg = ifnull(response.get("message"), "Unknown error");
+    return {"status": false, "message": "Failed to send: " + errorMsg};
+}

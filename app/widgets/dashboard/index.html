@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zaptilo Dashboard</title>
+  <link rel="stylesheet" href="../../css/widget.css">
+  <script src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
+</head>
+<body>
+  <div id="alert-container"></div>
+
+  <div class="widget-header">
+    <h2>WhatsApp Dashboard</h2>
+    <p>Zaptilo messaging overview</p>
+  </div>
+
+  <div id="dashboard-content">
+    <div class="loading"><div class="spinner"></div><p style="margin-top:8px">Loading...</p></div>
+  </div>
+
+  <script src="../../js/zaptilo-api.js"></script>
+  <script>
+    ZOHO.embeddedApp.on('PageLoad', async function() {
+      const connected = await ZaptiloAPI.init();
+      const container = document.getElementById('dashboard-content');
+
+      if (!connected) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <h3>Not Connected</h3>
+            <p>Configure your Zaptilo API token in Settings to see dashboard stats.</p>
+          </div>`;
+        return;
+      }
+
+      try {
+        // Verify connection and get basic info
+        const verifyRes = await ZaptiloAPI.verify();
+
+        // Count WhatsApp notes across recent records for stats
+        let sentCount = 0;
+        try {
+          // Get recent tasks/notes with WhatsApp prefix
+          const tasks = await ZOHO.CRM.API.searchRecord({
+            Entity: 'Tasks',
+            Type: 'criteria',
+            Query: '(Subject:starts_with:WhatsApp)',
+            page: 1,
+            per_page: 200,
+          });
+          sentCount = tasks?.data?.length || 0;
+        } catch (e) {
+          sentCount = 0;
+        }
+
+        // Get templates count
+        let templateCount = 0;
+        try {
+          const tpls = await ZaptiloAPI.getTemplates();
+          templateCount = tpls?.data?.length || 0;
+        } catch (e) {}
+
+        container.innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-value">${verifyRes.status ? 'Active' : 'Inactive'}</div>
+              <div class="stat-label">Subscription Status</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${templateCount}</div>
+              <div class="stat-label">Templates Available</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value">${sentCount}</div>
+              <div class="stat-label">Messages Logged in CRM</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" style="font-size:16px">
+                <a href="https://web.zaptilo.ai/billing" target="_blank"
+                   style="color:#d97706; text-decoration:none">
+                  View Balance &rarr;
+                </a>
+              </div>
+              <div class="stat-label">Credit Balance</div>
+            </div>
+          </div>
+
+          <div style="margin-top:20px; text-align:center">
+            <a href="https://web.zaptilo.ai" target="_blank"
+               class="btn btn-primary">
+              Open Zaptilo Dashboard
+            </a>
+          </div>
+        `;
+      } catch (e) {
+        container.innerHTML = `<div class="alert alert-error">Failed to load dashboard: ${e.message}</div>`;
+      }
+    });
+
+    ZOHO.embeddedApp.init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+// Deluge Custom Function: Send WhatsApp Text Message
+// Use in Zoho CRM Workflows, Blueprints, CommandCenter
+//
+// Parameters:
+//   phone   (String) - Phone number with country code, e.g. "919876543210"
+//   message (String) - Message text to send
+//
+// Returns: Map with status and message
+
+// Get API token from org variables
+apiToken = zoho.crm.getOrgVariable("zaptilo_api_token");
+
+if(apiToken == null || apiToken == "")
+{
+    return {"status": false, "message": "Zaptilo API token not configured"};
+}
+
+// Prepare API request
+apiUrl = "https://zaptilo.ai/api/send";
+
+headers = Map();
+headers.put("Authorization", "Bearer " + apiToken);
+headers.put("Content-Type", "application/json");
+
+payload = Map();
+payload.put("number", phone);
+payload.put("message", message);
+
+// Make API call
+response = invokeurl
+[
+    url: apiUrl
+    type: POST
+    headers: headers
+    parameters: payload.toString()
+];
+
+info "Zaptilo Send Message Response: " + response;
+
+// Parse response
+if(response.containKey("status") && response.get("status") == true)
+{
+    return {"status": true, "message": "WhatsApp message sent successfully"};
+}
+else
+{
+    errorMsg = ifnull(response.get("message"), "Unknown error");
+    return {"status": false, "message": "Failed to send: " + errorMsg};
+}

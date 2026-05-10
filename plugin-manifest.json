@@ -1,0 +1,95 @@
+{
+  "service": "Desk",
+  "deskVersion": "1.0",
+  "name": "Zaptilo WhatsApp for Desk",
+  "description": "Send WhatsApp Business messages from Zoho Desk — ticket-status updates, agent replies on WhatsApp, customer-facing notifications. Pay-as-you-go INR pricing via Zaptilo.",
+  "logo": "app/images/logo.png",
+  "version": "1.0.0",
+  "author": {
+    "name": "Zaptilo",
+    "email": "connect@zaptilo.ai",
+    "url": "https://zaptilo.ai"
+  },
+  "category": "Customer Support",
+  "components": {
+    "widgets": [
+      {
+        "name": "SendWhatsApp",
+        "widget_type": "button",
+        "location": ["detail_page.button", "list_page.button"],
+        "modules": ["Tickets", "Contacts", "Accounts"],
+        "url": "/app/widgets/send-whatsapp/index.html",
+        "logo": "app/images/whatsapp-icon.png",
+        "description": "Send ticket status / reply / resolution via WhatsApp"
+      },
+      {
+        "name": "ConversationHistory",
+        "widget_type": "related_list",
+        "location": ["detail_page.related_list"],
+        "modules": ["Tickets", "Contacts"],
+        "url": "/app/widgets/conversation-history/index.html",
+        "logo": "app/images/whatsapp-icon.png",
+        "description": "WhatsApp conversation history with this contact"
+      },
+      {
+        "name": "Settings",
+        "widget_type": "settings",
+        "location": ["settings"],
+        "url": "/app/widgets/settings/index.html",
+        "logo": "app/images/logo.png",
+        "description": "Configure Zaptilo WhatsApp integration"
+      },
+      {
+        "name": "Dashboard",
+        "widget_type": "dashboard",
+        "location": ["dashboard"],
+        "url": "/app/widgets/dashboard/index.html",
+        "logo": "app/images/logo.png",
+        "description": "WhatsApp messaging dashboard"
+      }
+    ],
+    "custom_functions": [
+      {
+        "name": "sendWhatsAppMessage",
+        "display_name": "Send WhatsApp Message",
+        "description": "Send a WhatsApp text message to a phone number",
+        "category": "create",
+        "script_file": "functions/sendWhatsAppMessage.dg",
+        "input_params": [
+          { "name": "phone",   "type": "string", "description": "Phone number with country code" },
+          { "name": "message", "type": "string", "description": "Message text" }
+        ]
+      },
+      {
+        "name": "sendWhatsAppTemplate",
+        "display_name": "Send WhatsApp Template",
+        "description": "Send a WhatsApp template message (ticket update, resolution, SLA breach, etc.)",
+        "category": "create",
+        "script_file": "functions/sendWhatsAppTemplate.dg",
+        "input_params": [
+          { "name": "phone",         "type": "string", "description": "Phone number with country code" },
+          { "name": "template_name", "type": "string", "description": "Approved template name" },
+          { "name": "language",      "type": "string", "description": "Template language code" },
+          { "name": "body_values",   "type": "string", "description": "Comma-separated template body values" }
+        ]
+      }
+    ],
+    "connectors": [
+      {
+        "name": "zaptilo",
+        "connection_type": "custom",
+        "base_url": "https://web.zaptilo.ai",
+        "auth_type": "token",
+        "token_placement": "header",
+        "token_header": "Authorization",
+        "token_prefix": "Bearer"
+      }
+    ]
+  },
+  "settings": {
+    "org_variables": [
+      { "name": "zaptilo_api_token",      "display_name": "Zaptilo API Token",      "type": "password" },
+      { "name": "zaptilo_default_sender", "display_name": "Default Sender Number", "type": "text" }
+    ]
+  }
+}

@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Send WhatsApp - Zaptilo</title>
+  <link rel="stylesheet" href="../../css/widget.css">
+  <script src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbededAppSDK.min.js"></script>
+</head>
+<body>
+  <div id="alert-container"></div>
+
+  <div class="widget-header">
+    <h2>Send WhatsApp</h2>
+    <p id="contact-info"></p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" data-tab="text" onclick="switchTab('text')">Text</div>
+    <div class="tab" data-tab="template" onclick="switchTab('template')">Template</div>
+    <div class="tab" data-tab="media" onclick="switchTab('media')">Media</div>
+  </div>
+
+  <!-- Text Message Tab -->
+  <div id="tab-text" class="tab-content active">
+    <div class="form-group">
+      <label>Phone Number</label>
+      <input type="tel" id="txt-phone" placeholder="+919876543210">
+    </div>
+    <div class="form-group">
+      <label>Message</label>
+      <textarea id="txt-message" rows="4" placeholder="Type your message..."></textarea>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-send-text" onclick="sendTextMessage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        Send Message
+      </button>
+      <button class="btn btn-secondary" onclick="ZOHO.CRM.UI.Popup.close()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Template Tab -->
+  <div id="tab-template" class="tab-content">
+    <div class="form-group">
+      <label>Phone Number</label>
+      <input type="tel" id="tpl-phone" placeholder="+919876543210">
+    </div>
+
+    <div class="form-group">
+      <label>Select Template</label>
+      <div id="template-list" class="template-list">
+        <div class="loading"><div class="spinner"></div><p style="margin-top:8px">Loading templates...</p></div>
+      </div>
+    </div>
+
+    <!-- Template params (dynamic) -->
+    <div id="template-params" style="display:none">
+      <div class="form-group">
+        <label>Template Parameters</label>
+        <div id="param-fields"></div>
+      </div>
+    </div>
+
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-send-template" onclick="sendTemplateMessage()" disabled>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        Send Template
+      </button>
+      <button class="btn btn-secondary" onclick="ZOHO.CRM.UI.Popup.close()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Media Tab -->
+  <div id="tab-media" class="tab-content">
+    <div class="form-group">
+      <label>Phone Number</label>
+      <input type="tel" id="media-phone" placeholder="+919876543210">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Media Type</label>
+        <select id="media-type">
+          <option value="image">Image</option>
+          <option value="video">Video</option>
+          <option value="document">Document</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Media URL</label>
+      <input type="text" id="media-url" placeholder="https://example.com/file.jpg">
+    </div>
+    <div class="form-group">
+      <label>Caption (optional)</label>
+      <textarea id="media-caption" rows="2" placeholder="Add a caption..."></textarea>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="btn-send-media" onclick="sendMediaMessage()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        Send Media
+      </button>
+      <button class="btn btn-secondary" onclick="ZOHO.CRM.UI.Popup.close()">Cancel</button>
+    </div>
+  </div>
+
+  <script src="../../js/zaptilo-api.js"></script>
+  <script>
+    let currentRecord = null;
+    let currentEntity = null;
+    let templates = [];
+    let selectedTemplate = null;
+
+    // Initialize
+    ZOHO.embeddedApp.on('PageLoad', async function(data) {
+      currentEntity = data.Entity;
+
+      // Init API
+      const connected = await ZaptiloAPI.init();
+      if (!connected) {
+        ZohoHelper.showError('Zaptilo API token not configured. Go to Settings to connect.');
+        return;
+      }
+
+      // Load record data
+      try {
+        const record = await ZOHO.CRM.API.getRecord({
+          Entity: data.Entity,
+          RecordID: data.EntityId,
+        });
+        currentRecord = record?.data?.[0];
+
+        if (currentRecord) {
+          const name = ZohoHelper.getNameFromRecord(currentRecord);
+          const phone = ZohoHelper.getPhoneFromRecord(currentRecord);
+          document.getElementById('contact-info').textContent = name + (phone ? ' (' + phone + ')' : '');
+
+          // Pre-fill phone in all tabs
+          if (phone) {
+            document.getElementById('txt-phone').value = phone;
+            document.getElementById('tpl-phone').value = phone;
+            document.getElementById('media-phone').value = phone;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load record:', e);
+      }
+
+      // Load templates
+      loadTemplates();
+    });
+
+    ZOHO.embeddedApp.init();
+
+    // Tab switching
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    // Load templates
+    async function loadTemplates() {
+      try {
+        const res = await ZaptiloAPI.getTemplates();
+        templates = res.data || [];
+        renderTemplates();
+      } catch (e) {
+        document.getElementById('template-list').innerHTML =
+          '<div class="alert alert-error">Failed to load templates: ' + e.message + '</div>';
+      }
+    }
+
+    function renderTemplates() {
+      const container = document.getElementById('template-list');
+      if (!templates.length) {
+        container.innerHTML = '<div class="empty-state"><h3>No templates found</h3><p>Create templates in your Zaptilo dashboard first.</p></div>';
+        return;
+      }
+
+      container.innerHTML = templates.map((t, i) => `
+        <div class="template-card ${selectedTemplate === i ? 'selected' : ''}" onclick="selectTemplate(${i})">
+          <h4>${t.name}</h4>
+          <p>${t.category || ''} &middot; ${t.language || 'en'}</p>
+          <span class="badge ${t.status === 'APPROVED' ? 'badge-approved' : 'badge-pending'}">${t.status}</span>
+        </div>
+      `).join('');
+    }
+
+    function selectTemplate(index) {
+      selectedTemplate = index;
+      renderTemplates();
+      document.getElementById('btn-send-template').disabled = false;
+
+      // Show param fields if template has variables
+      const tpl = templates[index];
+      const paramContainer = document.getElementById('template-params');
+      const fieldContainer = document.getElementById('param-fields');
+
+      // Count {{1}}, {{2}} etc. in template body (estimate)
+      const bodyVarCount = (tpl.body || '').match(/\{\{\d+\}\}/g)?.length || 0;
+      const headerVarCount = (tpl.header || '').match(/\{\{\d+\}\}/g)?.length || 0;
+
+      if (bodyVarCount > 0 || headerVarCount > 0) {
+        paramContainer.style.display = 'block';
+        let html = '';
+
+        for (let i = 1; i <= headerVarCount; i++) {
+          html += `
+            <div class="field-map-row">
+              <label>Header {{${i}}}</label>
+              <input type="text" class="header-param" data-index="${i}" placeholder="Value or CRM field">
+            </div>`;
+        }
+
+        for (let i = 1; i <= bodyVarCount; i++) {
+          const suggestedField = getSuggestedCRMField(i);
+          html += `
+            <div class="field-map-row">
+              <label>Body {{${i}}}</label>
+              <input type="text" class="body-param" data-index="${i}"
+                     value="${suggestedField}" placeholder="Value or CRM field">
+            </div>`;
+        }
+
+        fieldContainer.innerHTML = html;
+      } else {
+        paramContainer.style.display = 'none';
+        fieldContainer.innerHTML = '';
+      }
+    }
+
+    function getSuggestedCRMField(index) {
+      if (!currentRecord) return '';
+      // Auto-suggest common fields for first few params
+      const suggestions = [
+        currentRecord.First_Name || currentRecord.Full_Name || '',
+        currentRecord.Last_Name || '',
+        currentRecord.Company || '',
+        currentRecord.Email || '',
+      ];
+      return suggestions[index - 1] || '';
+    }
+
+    // Send text message
+    async function sendTextMessage() {
+      const phone = document.getElementById('txt-phone').value.trim();
+      const message = document.getElementById('txt-message').value.trim();
+
+      if (!phone || !message) {
+        ZohoHelper.showError('Please enter phone number and message.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-send-text');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      try {
+        await ZaptiloAPI.sendMessage(phone, message);
+        ZohoHelper.showSuccess('Message sent successfully!');
+
+        // Log in CRM
+        if (currentRecord) {
+          await ZohoHelper.storeMessageNote(
+            currentEntity, currentRecord.id, 'outgoing', message          );
+          await ZohoHelper.logActivity(
+            currentEntity, currentRecord.id,
+            'WhatsApp: Message sent',
+            'Sent via Zaptilo: ' + message.substring(0, 200)
+          );
+        }
+
+        document.getElementById('txt-message').value = '';
+      } catch (e) {
+        ZohoHelper.showError('Failed to send: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Send Message';
+      }
+    }
+
+    // Send template message
+    async function sendTemplateMessage() {
+      const phone = document.getElementById('tpl-phone').value.trim();
+      if (!phone || selectedTemplate === null) {
+        ZohoHelper.showError('Please enter phone number and select a template.');
+        return;
+      }
+
+      const tpl = templates[selectedTemplate];
+      const headerParams = Array.from(document.querySelectorAll('.header-param')).map(el => el.value.trim());
+      const bodyParams = Array.from(document.querySelectorAll('.body-param')).map(el => el.value.trim());
+
+      const btn = document.getElementById('btn-send-template');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      try {
+        await ZaptiloAPI.sendTemplate(phone, tpl.name, tpl.language || 'en', headerParams, bodyParams);
+        ZohoHelper.showSuccess('Template message sent successfully!');
+
+        if (currentRecord) {
+          await ZohoHelper.storeMessageNote(
+            currentEntity, currentRecord.id, 'outgoing',
+            '[Template: ' + tpl.name + '] Params: ' + bodyParams.join(', ')          );
+          await ZohoHelper.logActivity(
+            currentEntity, currentRecord.id,
+            'WhatsApp: Template sent (' + tpl.name + ')',
+            'Template: ' + tpl.name + ', Params: ' + bodyParams.join(', ')
+          );
+        }
+      } catch (e) {
+        ZohoHelper.showError('Failed to send: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Send Template';
+      }
+    }
+
+    // Send media message
+    async function sendMediaMessage() {
+      const phone = document.getElementById('media-phone').value.trim();
+      const mediaType = document.getElementById('media-type').value;
+      const mediaUrl = document.getElementById('media-url').value.trim();
+      const caption = document.getElementById('media-caption').value.trim();
+
+      if (!phone || !mediaUrl) {
+        ZohoHelper.showError('Please enter phone number and media URL.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-send-media');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      try {
+        await ZaptiloAPI.sendMedia(phone, mediaUrl, mediaType, caption);
+        ZohoHelper.showSuccess('Media message sent successfully!');
+
+        if (currentRecord) {
+          await ZohoHelper.storeMessageNote(
+            currentEntity, currentRecord.id, 'outgoing',
+            '[Media: ' + mediaType + '] ' + mediaUrl + (caption ? '\nCaption: ' + caption : '')          );
+        }
+
+        document.getElementById('media-url').value = '';
+        document.getElementById('media-caption').value = '';
+      } catch (e) {
+        ZohoHelper.showError('Failed to send: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Send Media';
+      }
+    }
+  </script>
+</body>
+</html>
