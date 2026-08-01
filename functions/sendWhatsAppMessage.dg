@@ -16,7 +16,7 @@ if(apiToken == null || apiToken == "")
 }
 
 // Prepare API request
-apiUrl = "https://zaptilo.ai/api/send";
+apiUrl = "https://web.zaptilo.ai/api/send";
 
 headers = Map();
 headers.put("Authorization", "Bearer " + apiToken);
